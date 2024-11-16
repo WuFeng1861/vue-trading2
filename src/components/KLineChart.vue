@@ -1,15 +1,11 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { createChart } from 'lightweight-charts';
+import { ref, onMounted, onUnmounted, nextTick, markRaw } from 'vue';
+import * as echarts from 'echarts';
 import { generateHistoricalData } from '../services/priceData';
 
 const chartRef = ref(null);
-const tooltipRef = ref(null);
 const chart = ref(null);
-const candleSeries = ref(null);
-const volumeSeries = ref(null);
 const isMobile = ref(false);
-
 const currentPrice = ref(1.7942);
 const selectedPeriod = ref('1D');
 const historicalData = ref(generateHistoricalData(30));
@@ -29,86 +25,148 @@ const initChart = () => {
   const mediaQuery = window.matchMedia('(max-width: 768px)');
   isMobile.value = mediaQuery.matches;
 
-  chart.value = createChart(chartRef.value, {
-    layout: {
-      background: { color: '#1E222D' },
-      textColor: '#DDD',
-    },
-    grid: {
-      vertLines: { color: '#2B2B43' },
-      horzLines: { color: '#2B2B43' },
-    },
-    width: chartRef.value.clientWidth,
-    height: isMobile.value ? 250 : 500,
-  });
-
-  // 创建K线图，设置为占据80%的高度
-  candleSeries.value = chart.value.addCandlestickSeries({
-    upColor: '#26a69a',
-    downColor: '#ef5350',
-    borderVisible: false,
-    wickUpColor: '#26a69a',
-    wickDownColor: '#ef5350',
-    priceScaleId: 'price-scale',
-    scaleMargins: {
-      top: 0, // 10% from the top
-      bottom: 0.2, // 20% from the bottom (leaving space for volume)
-    },
-  });
-
-  // 只在桌面端显示成交量图表，设置为占据20%的高度
-  if (!isMobile.value) {
-    volumeSeries.value = chart.value.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: 'volume-scale',
-      scaleMargins: {
-        top: 0.8, // Start at 80% from the top
-        bottom: 0.0, // Extend to the bottom
-      },
-    });
-
-    // 设置成交量数据
-    volumeSeries.value.setData(
-      historicalData.value.map(item => ({
-        time: item.time,
-        value: item.volume,
-        color: item.close >= item.open ? '#26a69a' : '#ef5350'
-      }))
-    );
-
-    // 配置成交量价格轴
-    chart.value.priceScale('volume-scale').applyOptions({
-      scaleMargins: {
-        top: 0.8, // Start at 80% from the top
-        bottom: 0.0, // Extend to the bottom
-      },
-    });
+  if (chart.value) {
+    chart.value.dispose();
   }
 
-  // 设置K线数据
-  candleSeries.value.setData(historicalData.value);
+  chart.value = markRaw(echarts.init(chartRef.value));
+  
+  const data = historicalData.value.map(item => ({
+    time: item.time,
+    values: [item.open, item.close, item.low, item.high],
+    volume: item.volume
+  }));
 
-  // 添加十字准线
-  chart.value.subscribeCrosshairMove((param) => {
-    const data = param.seriesData.get(candleSeries.value);
-    if (data) {
-      tooltipRef.value.style.display = 'block';
-      tooltipRef.value.style.left = `${param.point.x}px`;
-      tooltipRef.value.style.top = `${param.point.y}px`;
-      tooltipRef.value.innerHTML = `
-        <div class="text-xs">
-          <div>开盘价：${data.open}</div>
-          <div>最高价：${data.high}</div>
-          <div>最低价：${data.low}</div>
-          <div>收盘价：${data.close}</div>
-          <div>成交量：${historicalData.value.find(d => d.time === param.time)?.volume || 0}</div>
-        </div>
-      `;
-    }
-  });
+  const option = {
+    backgroundColor: '#1E222D',
+    animation: false,
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      backgroundColor: '#13151A',
+      borderColor: '#2B2B43',
+      borderWidth: 1,
+      textStyle: {
+        color: '#DDD',
+      },
+      formatter: function (params) {
+        const candlestickData = params.find(param => param.seriesName === 'K线');
+        const volumeData = params.find(param => param.seriesName === '成交量');
+        
+        if (!candlestickData) return '';
+        
+        const values = candlestickData.data.values;
+        return `
+          <div style="font-size: 12px">
+            <div>时间：${candlestickData.data.time}</div>
+            <div>开盘价：${values[0]}</div>
+            <div>收盘价：${values[1]}</div>
+            <div>最低价：${values[2]}</div>
+            <div>最高价：${values[3]}</div>
+            <div>成交量：${volumeData ? volumeData.data.volume : ''}</div>
+          </div>
+        `;
+      }
+    },
+    axisPointer: {
+      link: { xAxisIndex: 'all' },
+      label: {
+        backgroundColor: '#777'
+      }
+    },
+    grid: [{
+      left: '10%',
+      right: '10%',
+      height: '60%'
+    }, {
+      left: '10%',
+      right: '10%',
+      top: '75%',
+      height: '15%'
+    }],
+    xAxis: [{
+      type: 'category',
+      data: data.map(item => item.time),
+      scale: true,
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#2B2B43' } },
+      splitLine: { show: false },
+      min: 'dataMin',
+      max: 'dataMax',
+      axisLabel: {
+        color: '#DDD',
+        formatter: (value) => value.substring(5)
+      }
+    }, {
+      type: 'category',
+      gridIndex: 1,
+      data: data.map(item => item.time),
+      scale: true,
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#2B2B43' } },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      min: 'dataMin',
+      max: 'dataMax'
+    }],
+    yAxis: [{
+      scale: true,
+      splitNumber: 6,
+      axisLine: { lineStyle: { color: '#2B2B43' } },
+      splitLine: { lineStyle: { color: '#2B2B43' } },
+      axisLabel: {
+        color: '#DDD',
+        formatter: (value) => value.toFixed(4)
+      }
+    }, {
+      scale: true,
+      gridIndex: 1,
+      splitNumber: 2,
+      axisLine: { lineStyle: { color: '#2B2B43' } },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false }
+    }],
+    dataZoom: [{
+      type: 'inside',
+      xAxisIndex: [0, 1],
+      start: 0,
+      end: 100
+    }],
+    series: [{
+      name: 'K线',
+      type: 'candlestick',
+      data: data.map(item => ({
+        time: item.time,
+        values: item.values,
+        value: item.values
+      })),
+      itemStyle: {
+        color: '#ef5350',
+        color0: '#26a69a',
+        borderColor: '#ef5350',
+        borderColor0: '#26a69a'
+      }
+    }, {
+      name: '成交量',
+      type: 'bar',
+      xAxisIndex: 1,
+      yAxisIndex: 1,
+      data: data.map(item => ({
+        time: item.time,
+        volume: item.volume,
+        value: item.volume,
+        itemStyle: {
+          color: item.values[1] >= item.values[0] ? '#26a69a' : '#ef5350'
+        }
+      }))
+    }]
+  };
+
+  chart.value.setOption(option);
 };
 
 const handleResize = () => {
@@ -117,53 +175,41 @@ const handleResize = () => {
   const mediaQuery = window.matchMedia('(max-width: 768px)');
   const newIsMobile = mediaQuery.matches;
 
-  // 如果移动端状态发生变化，需要重新初始化图表
   if (newIsMobile !== isMobile.value) {
     isMobile.value = newIsMobile;
-    chart.value.remove();
-    initChart();
+    nextTick(() => {
+      initChart();
+    });
     return;
   }
 
-  chart.value.applyOptions({
-    width: chartRef.value.clientWidth,
-    height: isMobile.value ? 250 : 500,
-  });
+  chart.value.resize();
 };
 
 const changePeriod = (period) => {
   selectedPeriod.value = period;
-  // 这里可以根据不同的时间周期请求相应的数据
-  // 目前使用模拟数据
   historicalData.value = generateHistoricalData(
     period === '1Y' ? 365 : 
     period === '1W' ? 7 : 
     period === '1D' ? 24 : 30
   );
-  if (candleSeries.value) {
-    candleSeries.value.setData(historicalData.value);
-    // 重新设置成交量数据pc
-    if (volumeSeries.value && !isMobile.value) {
-      volumeSeries.value.setData(
-        historicalData.value.map(item => ({
-          time: item.time,
-          value: item.volume,
-          color: item.close >= item.open ? '#26a69a' : '#ef5350'
-        }))
-      );
-    }
+  
+  if (chart.value) {
+    initChart();
   }
 };
 
 onMounted(() => {
-  initChart();
-  window.addEventListener('resize', handleResize);
+  nextTick(() => {
+    initChart();
+    window.addEventListener('resize', handleResize);
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   if (chart.value) {
-    chart.value.remove();
+    chart.value.dispose();
   }
 });
 </script>
@@ -172,8 +218,8 @@ onUnmounted(() => {
   <div class="bg-trading-dark rounded-lg p-6">
     <div class="mb-4 pb-4 border-b border-gray-700">
       <div class="flex justify-between items-center flex-wrap gap-4">
-        <span class="text-2xl font-bold" :class="currentPrice > historicalData[historicalData.length - 1].open ? 'text-trading-green' : 'text-trading-red'">
-          {{ currentPrice.toFixed(4) }} USDT
+        <span class="text-2xl font-bold" :class="currentPrice > historicalData[historicalData.length - 1]?.open ? 'text-trading-green' : 'text-trading-red'">
+          {{ currentPrice.toFixed(4) }} USDT666
         </span>
         <div class="w-full lg:w-auto overflow-x-auto whitespace-nowrap pb-2 lg:pb-0">
           <div class="inline-flex space-x-2">
@@ -195,23 +241,20 @@ onUnmounted(() => {
       </div>
     </div>
     <div class="relative">
-      <div ref="chartRef" class="rounded-lg overflow-hidden"></div>
       <div 
-        ref="tooltipRef" 
-        class="absolute z-50 bg-trading-darker border border-gray-700 rounded p-2 pointer-events-none hidden"
-        style="transform: translate(-50%, -100%);"
+        ref="chartRef" 
+        class="rounded-lg overflow-hidden"
+        :style="{ height: isMobile ? '250px' : '500px' }"
       ></div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 移动端滚动优化 */
 .whitespace-nowrap {
   -webkit-overflow-scrolling: touch;
 }
 
-/* 隐藏滚动条但保持功能 */
 .whitespace-nowrap::-webkit-scrollbar {
   display: none;
 }
