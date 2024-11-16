@@ -11,35 +11,28 @@ const props = defineProps({
 
 const isMobile = ref(false);
 let mediaQuery;
-let handleResize; // Declare handleResize at the top level
+let handleResize;
 
 onMounted(() => {
   mediaQuery = window.matchMedia('(max-width: 768px)');
   isMobile.value = mediaQuery.matches;
   
-  // Define handleResize function
   handleResize = (e) => {
     isMobile.value = e.matches;
   };
   
-  // Modern browsers
   if (mediaQuery.addEventListener) {
     mediaQuery.addEventListener('change', handleResize);
-  }
-  // Older browsers
-  else if (mediaQuery.addListener) {
+  } else if (mediaQuery.addListener) {
     mediaQuery.addListener(handleResize);
   }
 });
 
 onUnmounted(() => {
   if (mediaQuery && handleResize) {
-    // Modern browsers
     if (mediaQuery.removeEventListener) {
       mediaQuery.removeEventListener('change', handleResize);
-    }
-    // Older browsers
-    else if (mediaQuery.removeListener) {
+    } else if (mediaQuery.removeListener) {
       mediaQuery.removeListener(handleResize);
     }
   }
@@ -146,7 +139,7 @@ const getStatusClass = (status) => {
           </template>
         </tr>
       </thead>
-      <tbody>
+      <tbody class="text-white">
         <tr v-for="order in orders[showType]" 
             :key="order.id" 
             class="border-t border-gray-700 hover:bg-gray-800/50 transition-colors">

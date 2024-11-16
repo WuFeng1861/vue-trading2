@@ -16,10 +16,10 @@ const historicalData = ref(generateHistoricalData(30));
 
 const periods = [
   { label: '1S', value: '1S' },
-  { label: '1M', value: '1M' },
+  { label: '1m', value: '1m' },
   { label: '1H', value: '1H' },
   { label: '1D', value: '1D' },
-  { label: '1W', value: '1W' },
+  { label: '1M', value: '1M' },
   { label: '1Y', value: '1Y' },
 ];
 
@@ -142,6 +142,7 @@ const changePeriod = (period) => {
   );
   if (candleSeries.value) {
     candleSeries.value.setData(historicalData.value);
+    // 重新设置成交量数据pc
     if (volumeSeries.value && !isMobile.value) {
       volumeSeries.value.setData(
         historicalData.value.map(item => ({

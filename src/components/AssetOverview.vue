@@ -59,7 +59,7 @@ const handleWithdraw = (currency) => {
       <tbody>
         <tr v-for="asset in assets" 
             :key="asset.currency" 
-            class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors">
+            class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors text-white">
           <td class="py-4 px-4">
             <div class="flex items-center space-x-2">
               <span class="text-lg">{{ asset.icon }}</span>
@@ -91,7 +91,7 @@ const handleWithdraw = (currency) => {
         </tr>
       </tbody>
       <tfoot>
-        <tr class="bg-trading-darker">
+        <tr class="bg-trading-darker text-white">
           <td class="py-4 px-4 font-medium">总资产估值</td>
           <td class="text-right py-4 px-4 font-medium lg:hidden">
             {{ assets.reduce((sum, asset) => sum + parseFloat(asset.value_usdt), 0).toFixed(2) }} USDT
